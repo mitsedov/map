@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html>
+
+    <head>
+
+        <link rel="icon" href="favicon_islands.ico" type="image/x-icon">
+        <link rel="stylesheet" type="text/css" href="http://fonts.googleapis.com/css?family=Arvo">
+        <link href='http://fonts.googleapis.com/css?family=Roboto:300&subset=cyrillic-ext,latin' rel='stylesheet' type='text/css'>
+        <link rel="stylesheet" href="//code.jquery.com/ui/1.11.1/themes/smoothness/jquery-ui.css">
+    
+        <meta charset="utf-8">
+
+        <style>
+
+            html { border-color: #fd0; }
+
+            body {
+                font-family: 'Roboto', sans-serif;
+                font-size: 48px;
+                margin-top:30px;
+                margin-left: 60px;
+                margin-right: 20px;
+                margin-bottom: 0px;
+                padding:0px; 
+                background-color: white;
+            }
+
+            #main {
+                border-style: solid;
+                border-width: 1px;
+                border-color: #100;
+                border-opacity: 0.5;
+            }
+
+            #header{
+                margin-right: auto;
+                width: 68.5%;
+                border-style: solid;
+                border-color: #fd0;
+                border-width: 3px;
+                height: 85px;
+            }
+
+            #label{
+                margin-top: 10px;
+                margin-left: 13px;
+            }
+            
+
+            .subject {
+                fill: none; 
+                stroke: #000;
+                stroke-width: 0.7px;
+            }
+
+            #map {
+                font-family: 'Roboto', sans-serif;
+                font-size: 48px;
+                margin-top:30px;
+                margin-left: 0px;
+                margin-right: 20px;
+                margin-bottom: 0px;
+                padding:0px; 
+                background-color: white;
+                float:left;
+            }
+
+            #chartContainer{
+                flush:left;
+                margin-top:30px;
+            }
+
+
+            .background {
+                fill: #ffffff;
+                pointer-events: all;
+                stroke-width:2;
+                stroke: rgba(0,0,0,0.8);
+                stroke-opacity: 0.5;
+            }
+
+            .subject:hover {
+                fill-opacity:0.7;
+            }
+
+            #tooltip {
+                position: absolute;           
+                text-align: left;
+                padding: 20px;             
+                margin: 10px;
+                font-family: 'Arvo', serif;
+                font: 12px sans-serif;        
+                background: #fd0;   
+                border: 1px;      
+                border-radius: 2px;           
+                pointer-events: none; 
+                font-size: 40px;        
+            }
+
+            #tooltip h4{
+                margin:0;
+                font-size:14px;
+            }
+
+            #tooltip{
+                background:rgba(0,0,0,0.9);
+                border:1px solid grey;
+                border-radius:5px;
+                font-family: 'Roboto', sans-serif;
+                font-size:12px;
+                color:#fd0;
+                width:auto;
+                padding:4px;
+
+                opacity:0;
+            }
+
+            #tooltip table{
+                table-layout:fixed;
+            }
+
+            #tooltip tr td{
+                padding:0;
+                margin:0;
+            }
+
+            #tooltip tr td:nth-child(1){
+                width:50px;
+            }
+
+            #tooltip tr td:nth-child(2){
+                text-align:center;
+            }
+
+
+
+
+        </style>
+
+    </head>
+
+    <body>
+        
+        <script src="http://d3js.org/d3.v3.min.js"></script>
+        <script src="http://d3js.org/queue.v1.min.js"></script>
+        <script src="http://d3js.org/topojson.v1.min.js"></script>
+        <script src="http://code.jquery.com/jquery-2.1.0.js"></script>
+        <script src="//code.jquery.com/jquery-1.10.2.js"></script>
+        <script src="//code.jquery.com/ui/1.11.1/jquery-ui.js"></script>
+        <script src="http://dimplejs.org/dist/dimple.v2.1.0.min.js"></script>
+
+            <div id ="header">
+                <img id = "label" src="Yen.svg" onerror="this.src='your.png'">  <text> Regional Data on Advertising</text>
+            </div>
+
+            <div id="tooltip"></div>
+            <div id="map"></div>
+            <div id="chartContainer"></div>
+
+            <!--<p>Slider with slide event: <span id="slidertext">0</span></p>*/-->
+
+            
+
+            <script>
+                    // Задаём параметры окошка с картой
+                    var width = 938,
+                        height = 500;
+
+                    // Выбор проекции, лучше оставить как есть
+                    var projection = d3.geo.albers()
+                        .rotate([-95, -3])
+                        .center([0, 65])
+                        .parallels([45, 100])
+                        .scale(700)
+                        .translate([width/2, height / 2]);
+
+                    // Выбор цветовой шкалы для отображения данных на карте
+                    // Возможно, придется менять, сейчас не очень удачное отображение
+                    var fill = d3.scale.linear()
+                        .domain([0,50])
+                        .range(["#FDF3E7","#C63D0F"]);
+
+                    // Создаём объект, описывающий геоструктуру и позволяющий отображать её в SVG.
+                    var path = d3.geo.path().projection(projection);
+
+                    // Создаём listener для приближения/удаления карты
+                    var zoom = d3.behavior.zoom()
+                        .scaleExtent([1, 30])
+                        .size([width, height])
+                        .on('zoom', onZoom);
+
+                    // SVG внутри элемента map
+                    var svg = d3.select("#map").append("svg")
+                        .attr("id", "main")
+                        .attr("preserveAspectRatio", "xMidYMid")
+                        .attr("viewBox", "0 0 " + width + " " + height)
+                        .attr("width", width*3/4)
+                        .attr("height", height*3/4)
+                        .call(zoom);
+
+                    var g = svg.append('g');
+
+
+                    // Описываем, что должно происходить при приближении/удалении (см. с. 221 выше)
+                    function onZoom () {
+                        var t = d3.event.translate;
+                        var s = d3.event.scale;
+                     
+                        t[0] = Math.max(Math.min(t[0], 0), width * (1 - s));
+                        t[1] = Math.max(Math.min(t[1], 0), height * (1 - s));
+
+                        zoom.translate(t);
+
+                        g.style("stroke-width", 1 / s)
+                            .attr('transform', 'translate(' + t + ')scale(' + s + ')');
+                    }
+
+                    // Всплывающее окошко при наведении на регион
+                    function tooltipHtml(n, d){ 
+                        return "<h4>" + n + "</h4><table>" +
+                        "<tr><td>Info</td><td>" + d + "</td></tr>"
+                        "</table>";
+                    };
+
+                    // Показываем информацию в окошке
+                    function show_info(d){
+                        d3.select("#tooltip").transition().duration(200).style("opacity", .9);                  
+                        d3.select("#tooltip").html(tooltipHtml(d.properties.name_rus, dataNow.get(d.id)))  
+                            .style("left", (d3.event.pageX) + "px")     
+                            .style("top", (d3.event.pageY - 28) + "px");
+                    };
+                
+                    // Скрываем информацию в окошке
+                    function hide_info(){
+                        d3.select("#tooltip").transition().duration(500).style("opacity", 0);      
+                    };
+
+
+                    var dataLeft = d3.map();
+                    var dataRight = d3.map();
+                    var dataNow = d3.map();
+                    var data = d3.map();
+
+                    queue()
+                        .defer(d3.json, "./final.topo.json")
+                        .defer(d3.tsv, "./d.csv", function(d) { dataNow.set(d.regionid, d.data); })
+                        .await(load);
+
+                    function load(error, rus) {
+
+                        if (error){
+                            console.log(error);
+                            return;
+                        }
+
+                        var obls = topojson.feature(rus, rus.objects.name).features;
+
+                        g.selectAll(".subjects").data(obls).enter()
+                            .append("path")
+                            .attr('class', function(d) { return 'subject' })
+                            .attr('id', function(d) { return d.id })
+                            .style("fill", function(d) { return fill(dataNow.get(d.id)); })
+                            .attr("d", path)
+                            .on('mouseover', show_info)
+                            .on('mouseout', hide_info);
+
+                    }
+
+
+                </script>
+
+    </body>
+
+</html>
